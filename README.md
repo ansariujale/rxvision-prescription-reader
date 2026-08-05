@@ -85,9 +85,15 @@ an API call.
 using RapidFuzz's `token_sort_ratio`, keeping matches at 68 or above. This is what recovers a
 drug name when OCR gets a character or two wrong, which on handwriting it usually does.
 
+**Lookup** (`api_handler.py`) strips dosage-form words like "tablet" and "syrup" off the matched
+name, then queries a medicines API for the details shown in the results pane. That API is one I
+deploy myself — originally hosted on Railway, later moved to AWS Lambda behind API Gateway in
+`ap-south-1`.
+
 ## Stack
 
-Python, PyQt6, OpenCV, pytesseract, AWS Textract (boto3), RapidFuzz, pandas, requests.
+Python, PyQt6, OpenCV, pytesseract, AWS Textract (boto3), RapidFuzz, pandas, requests. The
+medicine lookup service behind it runs on AWS Lambda and API Gateway.
 
 Google Cloud Vision is wired up and was the original escalation target, but that call path is
 currently commented out in favour of Textract — see Known issues.
