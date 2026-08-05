@@ -1,7 +1,26 @@
-resource/client_secret_code.json
+# Credentials. The glob matters: text_extraction.py loads
+# client_secret_code1.json, which the old exact-name rule did not cover.
+resource/client_secret_code*.json
+*.json
+!.vscode/*.json
+
+# Local dataset (see README - not committed, ~31 MB)
+resource/medicine_names.csv
+
 __pycache__/
+*.pyc
+.venv/
+venv/
 error_log.txt
 tempCodeRunnerFile.py
 temp/
 api.py
 cropped_image.png
+
+# PyInstaller output
+build/
+dist/
+*.spec
+*.exe
+*.zip
+*.pkg
