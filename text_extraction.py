@@ -3,12 +3,8 @@ import pytesseract
 from PIL import Image
 from preprocessing import process_image
 import pandas as pd
-from google.cloud import vision
 import boto3
 from rapidfuzz import fuzz, process
-
-#initialize the Google vision api client using the json key
-google_client= vision.ImageAnnotatorClient.from_service_account_json(r"resource\client_secret_code1.json")
 
 #initialize the aws textract client
 textract_client= boto3.client("textract", region_name= "ap-south-1")
@@ -33,7 +29,7 @@ def normalize_text(text):
     return text.lower().replace("mg", "").strip()
 
 
-#get the confidence score from tesseract to decide whether to use vision api or tesserect ocr
+#get the confidence score from tesseract to decide whether to fall back to textract
 def get_tesseract_confidence(image):
 
     """Get confidence score for Tesseract OCR"""
@@ -76,11 +72,14 @@ def extract_text_with_textract(image_path):
 
 
 def extract_text_from_image(image_path,medicine_dataset,confidence_threshold=70): #default threshold = 70
-    """Extract only medicine names from the image."""
+    """Extract only medicine names from the image.
+
+    Runs Tesseract first and falls back to AWS Textract when Tesseract's own
+    mean confidence comes in under the threshold.
+    """
     # Load the medicine dataset
     medicine_names = load_medicine_dataset(medicine_dataset)
 
-    """Extract text from a preprocessed image using Tesseract and Google Vision."""
     # Load the preprocessed image using Pillow
     preprocessed_image = Image.open(image_path)
 
@@ -93,36 +92,14 @@ def extract_text_from_image(image_path,medicine_dataset,confidence_threshold=70)
     # Get Tesseract confidence score
     confidence = get_tesseract_confidence(preprocessed_image)
 
-    # Step 2: If confidence is low, switch to Google Vision API
+    # Step 2: If confidence is low, hand the image to Textract instead
     if confidence < confidence_threshold:
         try:
             extracted_text = extract_text_with_textract(image_path)
         except Exception as e:
             print(f"Error during Textract processing: {e}")
             return ""
-        
-            # with open(image_path, 'rb') as image_file:
-            #     content = image_file.read()
 
-            # # Prepare the image for Google Vision API
-            # image = vision.Image(content=content)
-            # # Add language hints to improve OCR accuracy
-            # image_context = vision.ImageContext(language_hints=['en'])
-            # Call the document text detection API with language hints
-            # response = client.document_text_detection(image=image, image_context=image_context)
-
-            # Handle any API errors
-        #     if response.error.message:
-        #         raise Exception(f"Google Vision API error: {response.error.message}")
-            
-        #     # Extract text from the Google Vision API response
-        #     extracted_text = response.full_text_annotation.text
-        #     # print("Raw ocr text: ",extracted_text)
-        
-        # except Exception as e:
-        #     print(f"Error during vision api processing:{e}")
-        #     return ""
-        
     # Step 3: Match extracted text with medicine dataset
     results = match_medicine(extracted_text, medicine_names)
     return results

@@ -56,6 +56,8 @@ def apply_dynamic_erosion(image):
         kernel = np.ones((2, 2), np.uint8)
         image = cv2.erode(image, kernel, iterations=1)
         erosion_applied = True
+
+        return image, erosion_applied
     else:
         print("Skipping erosion, the image seems fine.")
     

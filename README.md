@@ -95,8 +95,9 @@ deploy myself — originally hosted on Railway, later moved to AWS Lambda behind
 Python, PyQt6, OpenCV, pytesseract, AWS Textract (boto3), RapidFuzz, pandas, requests. The
 medicine lookup service behind it runs on AWS Lambda and API Gateway.
 
-Google Cloud Vision is wired up and was the original escalation target, but that call path is
-currently commented out in favour of Textract — see Known issues.
+Google Cloud Vision was the original escalation target before I moved to Textract. It has since
+been removed — it was still being imported and authenticated at startup despite nothing calling
+it, which meant the app refused to start without a service-account key it never used.
 
 ## Setup
 
@@ -120,15 +121,13 @@ Activate it — `.venv\Scripts\activate` on Windows, `source .venv/bin/activate`
 pip install -r requirements.txt
 ```
 
-Three things aren't in the repo and you'll need to supply them:
+Two things aren't in the repo and you'll need to supply them:
 
 1. **`resource/medicine_names.csv`** — the drug dataset the matcher reads. The matcher uses the
    `name` column; the file also carries `id`, `price(₹)`, `manufacturer_name`, `type`,
    `pack_size_label` and composition columns. Left out because it's ~31 MB of third-party data.
 2. **AWS credentials** with Textract access in `ap-south-1`, through the normal boto3 chain
    (`~/.aws/credentials` or environment variables).
-3. **`resource/client_secret_code1.json`** — a Google Cloud service-account key. Still required at
-   import even though the Vision path is disabled.
 
 ```bash
 python ocrApp.py
@@ -138,10 +137,6 @@ python ocrApp.py
 
 Real ones, in the code as it stands:
 
-- **Google Vision is a required dependency that does nothing.** `text_extraction.py` builds an
-  `ImageAnnotatorClient` at module import, so the app won't start without a service-account JSON —
-  but the Vision call is commented out and Textract handles every escalation. The client should
-  either be created lazily or the Vision path restored.
 - **Preprocessing can crash on dark images.** Step 7 sets the output path to
   `temp/eroded_image.jpg` when the mean pixel value is below 120, but nothing ever writes that
   file, so the next stage opens a path that isn't there.
@@ -155,6 +150,6 @@ Real ones, in the code as it stands:
 
 ## Possible next steps
 
-Fix the two preprocessing bugs, make the Vision client lazy or drop it, move the lookup URL and
-the confidence and matching thresholds into config, and put together a small labelled set of
-prescription images so the pipeline can be measured instead of eyeballed.
+Fix the two preprocessing bugs, move the lookup URL and the confidence and matching thresholds
+into config, and put together a small labelled set of prescription images so the pipeline can be
+measured instead of eyeballed.

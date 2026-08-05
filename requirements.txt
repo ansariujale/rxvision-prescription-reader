@@ -2,7 +2,6 @@ pytesseract
 opencv-python
 Pillow
 numpy
-google-cloud-vision
 boto3
 requests
 rapidfuzz
