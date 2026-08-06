@@ -137,12 +137,10 @@ python ocrApp.py
 
 Real ones, in the code as it stands:
 
-- **Preprocessing can crash on dark images.** Step 7 sets the output path to
-  `temp/eroded_image.jpg` when the mean pixel value is below 120, but nothing ever writes that
-  file, so the next stage opens a path that isn't there.
-- **Preprocessing can throw away its own work.** The rotation step operates on the *original*
-  image rather than the processed one, and when it rotates a portrait image it returns that as the
-  final path — discarding the grayscale, threshold and noise-removal stages entirely.
+- **Erosion is decided twice, by two different rules.** Step 7 gates on mean pixel value
+  (`< 120`) while `apply_dynamic_erosion` decides internally on connected-component count
+  (`< 30`). When they disagree the saved file can be named `eroded_image.jpg` without having
+  been eroded. Harmless to output quality, but the two should agree.
 - **The medicine lookup URL is hardcoded** in `api_handler.py` instead of configured.
 - **No accuracy measurement.** I have no labelled test set for this, so there's no OCR accuracy
   number I can stand behind. Any figure quoted without one would be a guess.
@@ -150,6 +148,6 @@ Real ones, in the code as it stands:
 
 ## Possible next steps
 
-Fix the two preprocessing bugs, move the lookup URL and the confidence and matching thresholds
-into config, and put together a small labelled set of prescription images so the pipeline can be
-measured instead of eyeballed.
+Settle the erosion condition on one rule, move the lookup URL and the confidence and matching
+thresholds into config, and put together a small labelled set of prescription images so the
+pipeline can be measured instead of eyeballed.

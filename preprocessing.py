@@ -56,8 +56,6 @@ def apply_dynamic_erosion(image):
         kernel = np.ones((2, 2), np.uint8)
         image = cv2.erode(image, kernel, iterations=1)
         erosion_applied = True
-
-        return image, erosion_applied
     else:
         print("Skipping erosion, the image seems fine.")
     
@@ -209,12 +207,13 @@ def process_image(image_path):
     final_image_path=noiseremoved_path
 
     # Step 7: Erode Image
-    erosion_needed = np.mean(no_noise) < 120  
+    erosion_needed = np.mean(no_noise) < 120
+    eroded_image, erosion_applied = apply_dynamic_erosion(no_noise)
     if erosion_needed:
+        cv2.imwrite("temp/eroded_image.jpg",eroded_image)
         eroded_image_path = "temp/eroded_image.jpg"
-        # Logic for erosion here
         print(f"Eroded image saved as: {eroded_image_path}")
-        final_image_path = eroded_image_path  # Update final path
+        final_image_path = eroded_image_path  # Update final path 
     else:
         print("Skipping erosion, the image seems fine.")
 
@@ -230,8 +229,9 @@ def process_image(image_path):
         print("Dilation not needed, skipping saving dilated image.\n")
 
     # Step 9: Rotate image
-    rotated_image = rotate_image(img, angle=90)
-    if rotated_image is not img:  # Save only if rotation was applied
+    final_image= load_image(final_image_path)
+    rotated_image = rotate_image(final_image, angle=90)
+    if rotated_image is not final_image:  # Save only if rotation was applied
         cv2.imwrite("temp/rotated_image.jpg", rotated_image)
         print("Image rotated and saved as: temp/rotated_image.jpg\n")
         rotated_image_path="temp/rotated_image.jpg"
