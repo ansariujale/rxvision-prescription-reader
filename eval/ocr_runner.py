@@ -109,6 +109,33 @@ def mock_textract(original_path: str) -> dict:
     return {"text": f"Augmentin 625 Duo Tablet\nPantop 40 Tablet\n{name}", "blocks": 12}
 
 
+def needs_run(record: dict | None, engines: set[str]) -> bool:
+    """True if this image still has work to do.
+
+    An image counts as done only when every requested engine produced a result
+    without an error. Caching a failure and then skipping it forever was the
+    original behaviour, and it meant a transient problem - a missing Tesseract
+    binary, an expired AWS token - got baked into the cache permanently and
+    re-reported on every subsequent run as though it had just happened.
+    """
+    if record is None:
+        return True
+    results = record.get("engines", {})
+    return any(
+        engine not in results or results[engine].get("error")
+        for engine in engines
+    )
+
+
+def engine_failures(cache: dict) -> list[tuple[str, str, str]]:
+    return [
+        (name, engine, data["error"])
+        for name, rec in cache.items()
+        for engine, data in rec.get("engines", {}).items()
+        if data.get("error")
+    ]
+
+
 def process_one(image_path: Path, engines: set[str], mock: bool) -> dict:
     record: dict = {"image": image_path.name, "engines": {}}
 
@@ -170,28 +197,46 @@ def main() -> int:
     if cache_path.exists() and not args.force:
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
 
-    todo = [p for p in images if p.name not in cache]
-    print(f"{len(images)} images, {len(cache)} already cached, {len(todo)} to run")
+    todo = [p for p in images if needs_run(cache.get(p.name), engines)]
+    done = len(images) - len(todo)
+    retries = sum(1 for p in todo if p.name in cache)
+
+    summary = f"{len(images)} images, {done} already done, {len(todo)} to run"
+    if retries:
+        summary += f" ({retries} retrying after a previous failure)"
+    print(summary)
     if args.mock:
         print("MOCK MODE - stub engines, results are not real")
 
+    ran: list[str] = []
     for i, image_path in enumerate(todo, 1):
         print(f"  [{i}/{len(todo)}] {image_path.name}", flush=True)
         cache[image_path.name] = process_one(image_path, engines, args.mock)
+        ran.append(image_path.name)
         # Written every iteration so a crash or an interrupt doesn't lose paid calls.
         cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")
 
-    failures = [
-        (name, engine, data["error"])
-        for name, rec in cache.items()
-        for engine, data in rec.get("engines", {}).items()
-        if data.get("error")
-    ]
     print(f"\ncached {len(cache)} images to {cache_path}")
-    if failures:
-        print(f"{len(failures)} engine failures:")
-        for name, engine, err in failures[:10]:
+
+    # Report this run's failures separately from ones sitting in the cache from
+    # earlier attempts, so a clean run doesn't look like a broken one.
+    new_failures = engine_failures({n: cache[n] for n in ran})
+    stale_failures = [f for f in engine_failures(cache) if f[0] not in ran]
+
+    if new_failures:
+        print(f"\n{len(new_failures)} engine failures in this run:")
+        for name, engine, err in new_failures[:10]:
             print(f"  {name} [{engine}] {err}")
+        if len(new_failures) > 10:
+            print(f"  ... and {len(new_failures) - 10} more")
+    elif ran:
+        print(f"all {len(ran)} images processed cleanly")
+
+    if stale_failures:
+        print(
+            f"\n{len(stale_failures)} failures still in the cache from earlier runs "
+            f"(not retried because their engines weren't requested this time)"
+        )
 
     return 0
 

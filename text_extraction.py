@@ -1,10 +1,21 @@
 
+import os
+
 import pytesseract
 from PIL import Image
 from preprocessing import process_image
 import pandas as pd
 import boto3
 from rapidfuzz import fuzz, process
+
+# On Windows the Tesseract installer doesn't always put tesseract.exe on PATH
+# for every shell, and pytesseract then reports it as "not installed". Set
+# TESSERACT_CMD to the full path of the executable to point at it directly:
+#   C:\Program Files\Tesseract-OCR\tesseract.exe
+# The directory alone is not enough - this value is executed, not searched.
+_tesseract_cmd = os.environ.get("TESSERACT_CMD")
+if _tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
 
 #initialize the aws textract client
 textract_client= boto3.client("textract", region_name= "ap-south-1")
