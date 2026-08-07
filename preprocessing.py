@@ -126,7 +126,7 @@ def add_borders(image, border_size=150):
     return cv2.copyMakeBorder(image, border_size, border_size, border_size, border_size,
                                cv2.BORDER_CONSTANT, value=color)
 
-def detect_edges(image):
+def detect_edges(image):    
     
     # Apply GaussianBlur to smooth the image before edge detection
     blurred_image = cv2.GaussianBlur(image, (5, 5), 0)
@@ -207,9 +207,8 @@ def process_image(image_path):
     final_image_path=noiseremoved_path
 
     # Step 7: Erode Image
-    erosion_needed = np.mean(no_noise) < 120
     eroded_image, erosion_applied = apply_dynamic_erosion(no_noise)
-    if erosion_needed:
+    if erosion_applied:
         cv2.imwrite("temp/eroded_image.jpg",eroded_image)
         eroded_image_path = "temp/eroded_image.jpg"
         print(f"Eroded image saved as: {eroded_image_path}")
@@ -218,7 +217,6 @@ def process_image(image_path):
         print("Skipping erosion, the image seems fine.")
 
     # Step 8: Dilate Image
-    dilation_needed=np.mean(no_noise)>150
     dilated_image, dilation_applied = apply_dynamic_dilation(no_noise)
     if dilation_applied:  # Save only if dilation was applied
         cv2.imwrite("temp/dilated_image.jpg", dilated_image)

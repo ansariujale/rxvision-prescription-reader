@@ -137,17 +137,28 @@ python ocrApp.py
 
 Real ones, in the code as it stands:
 
-- **Erosion is decided twice, by two different rules.** Step 7 gates on mean pixel value
-  (`< 120`) while `apply_dynamic_erosion` decides internally on connected-component count
-  (`< 30`). When they disagree the saved file can be named `eroded_image.jpg` without having
-  been eroded. Harmless to output quality, but the two should agree.
-- **The medicine lookup URL is hardcoded** in `api_handler.py` instead of configured.
-- **No accuracy measurement.** I have no labelled test set for this, so there's no OCR accuracy
-  number I can stand behind. Any figure quoted without one would be a guess.
-- **No tests.**
+- **The medicine lookup URL is hardcoded** in `api_handler.py` instead of configured. So are the
+  confidence threshold (70) and the fuzzy-match threshold (68) in `text_extraction.py`.
+- **No accuracy measurement yet.** The harness to produce one exists in [`eval/`](eval/), but it
+  hasn't been run against a labelled set of real prescriptions, so there is no accuracy figure in
+  this repo. Any number quoted before that runs would be a guess.
+- **Tests cover the evaluation logic, not the application.** 37 tests over scoring and matching.
+  The Qt interface and the preprocessing chain have none.
+
+## Measuring it
+
+There's an evaluation harness in [`eval/`](eval/) that scores medicine extraction against a
+labelled set and compares the three ways of routing between the OCR engines — Tesseract only,
+Textract only, and escalating between them at a confidence threshold. It runs both engines once
+per image and caches everything, so every routing strategy and threshold can be compared offline
+without re-paying for API calls.
+
+It has no results in it yet. Collecting and labelling a set of real prescriptions is the next
+piece of work, and until that happens this project has no accuracy number attached to it on
+purpose.
 
 ## Possible next steps
 
-Settle the erosion condition on one rule, move the lookup URL and the confidence and matching
-thresholds into config, and put together a small labelled set of prescription images so the
-pipeline can be measured instead of eyeballed.
+Label a set of prescriptions and run the harness, move the lookup URL and the two thresholds into
+config, and profile the matching stage — `match_medicine` re-normalises the entire 254k-name
+dataset on every line of OCR output, which is almost certainly where the time goes.

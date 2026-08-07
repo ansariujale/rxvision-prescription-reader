@@ -7,6 +7,13 @@ resource/client_secret_code*.json
 # Local dataset (see README - not committed, ~31 MB)
 resource/medicine_names.csv
 
+# Evaluation data. Prescription images are patient data - they must never be
+# committed. Labels are ignored too since they are derived from those images.
+eval/images/
+eval/cache/
+eval/results/
+eval/labels.csv
+
 __pycache__/
 *.pyc
 .venv/
