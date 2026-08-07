@@ -36,8 +36,15 @@ def get_tesseract_confidence(image):
     # Use pytesseract to confidences get detailed information
     data= pytesseract.image_to_data(image, output_type= pytesseract.Output.DICT)
 
-    #Get the confidence score, (removing -1 which means to detection)
-    confidences = [int(conf) for conf in data['conf'] if conf != '-1']
+    # Drop the -1 rows. Those are Tesseract's page/block/paragraph/line entries
+    # rather than recognised words, and they have no confidence score.
+    #
+    # This used to compare against the string '-1', but pytesseract hands back
+    # ints, so nothing was ever filtered and every -1 was averaged in as if it
+    # were a real score. On a page Tesseract read perfectly that reported 43
+    # instead of 95, which pushed every image past the escalation threshold and
+    # sent the lot to Textract.
+    confidences = [int(conf) for conf in data['conf'] if int(conf) != -1]
 
     #return average confidence score
     return sum(confidences)/len(confidences) if confidences else 0

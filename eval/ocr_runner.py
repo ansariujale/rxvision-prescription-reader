@@ -33,6 +33,22 @@ def _timed(fn, *args, **kwargs):
         return None, time.perf_counter() - start, f"{type(e).__name__}: {e}"
 
 
+def mean_confidence(conf_values) -> tuple[float, int]:
+    """Mean Tesseract confidence over recognised words. Returns (mean, count).
+
+    Tesseract's TSV output has a row per page, block, paragraph and line as
+    well as per word, and the structural rows carry a confidence of -1. Those
+    have to come out before averaging or the mean is dragged toward zero in
+    proportion to how much structure the page has.
+
+    Kept as a separate function because the production copy of this got it
+    wrong in a way that was invisible: it filtered on the *string* '-1' while
+    pytesseract returns ints, so the filter never matched anything.
+    """
+    scores = [int(c) for c in conf_values if int(c) != -1]
+    return (sum(scores) / len(scores) if scores else 0.0), len(scores)
+
+
 def preprocess(image_path: str) -> str:
     from preprocessing import process_image
 
@@ -44,17 +60,25 @@ def preprocess(image_path: str) -> str:
 
 def run_tesseract(processed_path: str) -> dict:
     """Text plus the mean per-word confidence used for escalation decisions."""
+    import os
+
     import pytesseract
     from PIL import Image
+
+    # On Windows the installer often puts tesseract.exe somewhere that isn't on
+    # PATH for every shell, and pytesseract just reports "not installed".
+    # TESSERACT_CMD lets you point at it directly.
+    tesseract_cmd = os.environ.get("TESSERACT_CMD")
+    if tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
     image = Image.open(processed_path)
     text = pytesseract.image_to_string(image, lang="eng", config=r"--oem 3 --psm 6")
 
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-    scores = [int(c) for c in data["conf"] if c != "-1"]
-    confidence = sum(scores) / len(scores) if scores else 0.0
+    confidence, words = mean_confidence(data["conf"])
 
-    return {"text": text, "confidence": confidence, "words": len(scores)}
+    return {"text": text, "confidence": confidence, "words": words}
 
 
 def run_textract(original_path: str) -> dict:
