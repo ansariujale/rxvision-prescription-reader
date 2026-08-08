@@ -76,6 +76,7 @@ def run_tesseract(processed_path: str) -> dict:
     text = pytesseract.image_to_string(image, lang="eng", config=r"--oem 3 --psm 6")
 
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+    print(data)
     confidence, words = mean_confidence(data["conf"])
 
     return {"text": text, "confidence": confidence, "words": words}

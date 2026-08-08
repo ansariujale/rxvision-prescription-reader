@@ -20,10 +20,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import time
 from pathlib import Path
 
 from eval.matching import load_medicine_names, match_medicines
 from eval.metrics import Report, aggregate, score_image
+from medicine_index import MedicineIndex, normalize, strip_dosage_form
 
 
 def load_labels(path: Path) -> dict[str, list[str]]:
@@ -64,7 +66,7 @@ def text_for_mode(record: dict, mode: str, threshold: float) -> tuple[str | None
 def evaluate_mode(
     cache: dict,
     labels: dict[str, list[str]],
-    medicine_names: list[str],
+    matcher,
     mode: str,
     conf_threshold: float,
     match_threshold: int,
@@ -83,8 +85,12 @@ def evaluate_mode(
             skipped += 1
             continue
 
-        predicted = match_medicines(text, medicine_names, threshold=match_threshold)
-        scores.append(score_image(image, predicted, truth))
+        predicted = matcher(text, match_threshold)
+        # The matcher reports dosage-form-stripped names ("augmentin 625 duo"),
+        # so ground truth has to be reduced the same way or every comparison
+        # fails on the word "Tablet" rather than on anything meaningful.
+        expected = [strip_dosage_form(normalize(m)) for m in truth]
+        scores.append(score_image(image, predicted, expected))
 
         escalations += 1 if used_textract else 0
         engine_key = "textract" if used_textract else "tesseract"
@@ -112,6 +118,8 @@ def main() -> int:
     parser.add_argument("--match-threshold", type=int, default=68)
     parser.add_argument("--conf-threshold", type=float, default=70.0)
     parser.add_argument("--sweep", action="store_true", help="sweep the escalation threshold")
+    parser.add_argument("--exact", action="store_true",
+                        help="brute-force matching instead of the index; slow, for verifying the index")
     parser.add_argument("--json-out", default=None)
     args = parser.parse_args()
 
@@ -128,8 +136,26 @@ def main() -> int:
     if not Path(args.dataset).exists():
         print(f"missing medicine dataset: {args.dataset}")
         return 1
-    medicine_names = load_medicine_names(args.dataset)
-    print(f"{len(medicine_names)} medicine names loaded\n")
+    if args.exact:
+        # Brute force. Only here so the index can be checked against it.
+        medicine_names = load_medicine_names(args.dataset)
+        print(f"{len(medicine_names):,} names loaded - EXACT mode, brute force, expect minutes\n")
+
+        def matcher(text, threshold):
+            return match_medicines(text, medicine_names, threshold=threshold)
+    else:
+        index_cache = Path(args.dataset).with_suffix(".index.pkl")
+        cached = index_cache.exists()
+        t0 = time.perf_counter()
+        index = MedicineIndex.from_csv(args.dataset, cache_path=index_cache)
+        print(
+            f"{len(index.keys):,} names, index "
+            f"{'loaded from cache' if cached else 'built and cached'} "
+            f"in {time.perf_counter() - t0:.1f}s\n"
+        )
+
+        def matcher(text, threshold):
+            return index.match_all(text, threshold=threshold)
 
     header = f"{'mode':<22} {'n':>4}  {'prec':>6} {'recall':>7} {'f1':>6}  {'exact':>7}  {'textract':>8}"
     print(header)
@@ -143,7 +169,7 @@ def main() -> int:
     ]
     for label, mode, conf in modes:
         report, stats = evaluate_mode(
-            cache, labels, medicine_names, mode, conf, args.match_threshold
+            cache, labels, matcher, mode, conf, args.match_threshold
         )
         print(f"{report.as_row(label)}  {stats['textract_call_rate']:>7.1%}")
         results[label] = {"report": report.__dict__, "stats": stats}
@@ -154,7 +180,7 @@ def main() -> int:
         print("-" * len(header))
         for conf in range(0, 101, 10):
             report, stats = evaluate_mode(
-                cache, labels, medicine_names, "escalate", float(conf), args.match_threshold
+                cache, labels, matcher, "escalate", float(conf), args.match_threshold
             )
             print(f"{report.as_row(f'escalate@{conf}')}  {stats['textract_call_rate']:>7.1%}")
             results[f"escalate@{conf}"] = {"report": report.__dict__, "stats": stats}

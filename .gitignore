@@ -31,3 +31,7 @@ dist/
 *.exe
 *.zip
 *.pkg
+
+# Built index (regenerated from the dataset)
+resource/*.index.pkl
+*.pkl
