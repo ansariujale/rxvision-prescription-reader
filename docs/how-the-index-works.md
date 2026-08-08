@@ -67,6 +67,25 @@ flowchart LR
 **Whole words break under OCR damage. Pieces don't.** If you remember one
 sentence, remember that one.
 
+### A note on padding, because the counts look wrong otherwise
+
+Before cutting a word up, two spaces go on the front and one on the end:
+
+```
+"augrnentin"   ->   "  augrnentin "
+```
+
+So a 10-character word becomes 13 characters, and yields **11** pieces rather
+than the 8 you get by cutting the bare word. The three extra are `'  a'`,
+`' au'` and `'in '`.
+
+They are there so the beginning and end of a word are distinguishable — without
+them `dolo` and `xdolo` would share every piece and look identical to the index.
+It also means very short names still produce something to index.
+
+Worth knowing when a count doesn't seem to add up: the padding pieces are real
+pieces and they score like any other.
+
 ## Building the index
 
 Done once, at startup.
@@ -88,36 +107,43 @@ Walk every drug name, cut it up, and record its position under each piece. With
 
 Done for every line of OCR text.
 
+Every piece is shown here so the final number can actually be counted. The
+dataset is two drugs: `augmentin` is drug 0, `azithral 500` is drug 1.
+
 ```mermaid
 flowchart TB
-    Q["OCR line:<br/>Augrnentin 625 Tablel"]
-    S["strip dosage form<br/>augrnentin 625"]
-    T["cut into pieces<br/>aug · ugr · grn · ent · nti · tin · ..."]
+    Q["OCR line: Augrnentin Tablel"]
+    S["strip dosage form → augrnentin"]
+    T["pad and cut → 11 pieces"]
 
-    L1["aug → drug 0"]
-    L2["ent → drug 0"]
-    L3["nti → drug 0"]
-    L4["tin → drug 0"]
-    L5["ugr → nothing<br/>grn → nothing"]
+    M["MATCHED — 7 pieces<br/><br/>'  a' → drug 0, drug 1<br/>' au' → drug 0<br/>'aug' → drug 0<br/>'ent' → drug 0<br/>'in ' → drug 0<br/>'nti' → drug 0<br/>'tin' → drug 0"]
+    X["NO MATCH — 4 pieces<br/><br/>'ugr' → nothing<br/>'grn' → nothing<br/>'rne' → nothing<br/>'nen' → nothing<br/><br/><i>these are the ones OCR destroyed</i>"]
 
-    C["COUNT how often each<br/>drug number appears<br/><br/>drug 0 → 11 times<br/>drug 1 → 1 time"]
-    K["keep the top 400"]
-    F["run the real fuzzy scorer<br/>on those 400 only"]
-    R["augmentin 625 duo<br/>score 89"]
+    C["COUNT the drug numbers<br/><br/>drug 0 appears 7 times<br/>drug 1 appears 1 time"]
+    K["keep the top 400<br/><i>here, both survive</i>"]
+    F["run the real fuzzy scorer<br/>on the survivors only"]
+    R["augmentin<br/>score 89"]
 
     Q --> S --> T
-    T --> L1 & L2 & L3 & L4 & L5
-    L1 & L2 & L3 & L4 --> C
-    C --> K --> F --> R
+    T --> M
+    T --> X
+    M --> C --> K --> F --> R
 ```
+
+Count them: seven pieces matched, and every one of them listed drug 0. So drug 0
+scores **7**. Drug 1 scores 1, because `'  a'` happens to appear in `azithral`
+too — both start with an `a`.
 
 The step people trip over is the counting one, so to be explicit:
 
-> **"drug 0 appeared 11 times" and "drug 0 shares 11 pieces with the query" are
+> **"drug 0 appeared 7 times" and "drug 0 shares 7 pieces with the query" are
 > the same statement.**
 
 The count *is* the similarity estimate. Nothing clever happens — you look up
 pieces and tally which drug numbers keep coming back.
+
+Four of eleven pieces were destroyed by a single misread character, and it still
+won 7 to 1. That is the property the whole design rests on.
 
 ## Where the speed comes from
 
