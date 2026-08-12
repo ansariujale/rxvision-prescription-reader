@@ -1,8 +1,3 @@
-import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QLabel
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import QSize, Qt
-
 def switch_to_page1(MainWindow):
     try:
         MainWindow.stackedWidget.setCurrentIndex(0)

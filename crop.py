@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QLabel, QDialog, QPushButton, QVBoxLayout, QSizePoli
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QImage, QIcon, QFont, QFontDatabase, QTransform
 from PyQt6.QtCore import Qt, QRect
 from text_extraction import extract_text_from_image
+from process_and_extract import MEDICINE_DATASET_PATH
 class CropImageDialog(QDialog):
 
     def update_image_display(self):
@@ -193,8 +194,8 @@ class CropImageDialog(QDialog):
             return cropped_image_path
         return None
 
-def open_crop_window(image_path,medicine_dataset):
-    dialog = CropImageDialog(image_path,medicine_dataset)
+def open_crop_window(image_path, MEDICINE_DATASET_PATH):
+    dialog = CropImageDialog(image_path,MEDICINE_DATASET_PATH)
     if dialog.exec() == QDialog.DialogCode.Accepted:
         # Cropping confirmed, return the cropped image
         return dialog.confirm_crop()  # Return the cropped image pat

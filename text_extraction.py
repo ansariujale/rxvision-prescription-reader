@@ -2,8 +2,6 @@
 import os
 
 import pytesseract
-from PIL import Image
-from preprocessing import process_image
 import pandas as pd
 import boto3
 from rapidfuzz import fuzz, process
@@ -89,7 +87,7 @@ def extract_text_with_textract(image_path):
 
 
 
-def extract_text_from_image(image_path,medicine_dataset,confidence_threshold=70): #default threshold = 70
+def extract_text_from_image(processed_image, image_path,medicine_dataset,confidence_threshold=70): #default threshold = 70
     """Extract only medicine names from the image.
 
     Runs Tesseract first and falls back to AWS Textract when Tesseract's own
@@ -98,17 +96,14 @@ def extract_text_from_image(image_path,medicine_dataset,confidence_threshold=70)
     # Load the medicine dataset
     medicine_names = load_medicine_dataset(medicine_dataset)
 
-    # Load the preprocessed image using Pillow
-    preprocessed_image = Image.open(image_path)
-
     # Custom Tesseract configurations for better results
     custom_config = r'--oem 3 --psm 6'  # Use best OCR engine mode and automatic page segmentation
 
     # Step 1: Try the Tesseract OCR first with custom configuration
-    extracted_text = pytesseract.image_to_string(preprocessed_image, lang='eng', config=custom_config)
+    extracted_text = pytesseract.image_to_string(processed_image, lang='eng', config=custom_config)
 
     # Get Tesseract confidence score
-    confidence = get_tesseract_confidence(preprocessed_image)
+    confidence = get_tesseract_confidence(processed_image)
 
     # Step 2: If confidence is low, hand the image to Textract instead
     if confidence < confidence_threshold:

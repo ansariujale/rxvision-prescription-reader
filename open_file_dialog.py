@@ -1,8 +1,6 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QLabel, QSizePolicy
+from PyQt6.QtWidgets import QFileDialog, QSizePolicy
 from PyQt6.QtGui import QPixmap, QImage
-from PyQt6.QtCore import QSize, Qt
-import sys
-import os
+from PyQt6.QtCore import  Qt
 import cv2
 
 def open_file_dialog(self):

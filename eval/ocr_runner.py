@@ -49,21 +49,26 @@ def mean_confidence(conf_values) -> tuple[float, int]:
     return (sum(scores) / len(scores) if scores else 0.0), len(scores)
 
 
-def preprocess(image_path: str) -> str:
+def preprocess(image_path: str):
+    """Run the app's preprocessing chain and return the image itself.
+
+    process_image returns a numpy array rather than a temp-file path, so there
+    is nothing on disk to check for. `is None` rather than a truth test: a
+    numpy array raises on `if not array`.
+    """
     from preprocessing import process_image
 
     out = process_image(image_path)
-    if not out or not Path(out).exists():
-        raise RuntimeError(f"preprocessing returned a missing path: {out!r}")
+    if out is None:
+        raise RuntimeError("preprocessing returned None")
     return out
 
 
-def run_tesseract(processed_path: str) -> dict:
+def run_tesseract(processed_image) -> dict:
     """Text plus the mean per-word confidence used for escalation decisions."""
     import os
 
     import pytesseract
-    from PIL import Image
 
     # On Windows the installer often puts tesseract.exe somewhere that isn't on
     # PATH for every shell, and pytesseract just reports "not installed".
@@ -72,22 +77,26 @@ def run_tesseract(processed_path: str) -> dict:
     if tesseract_cmd:
         pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
-    image = Image.open(processed_path)
-    text = pytesseract.image_to_string(image, lang="eng", config=r"--oem 3 --psm 6")
+    text = pytesseract.image_to_string(processed_image, lang="eng", config=r"--oem 3 --psm 6")
 
-    data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-    print(data)
+    data = pytesseract.image_to_data(processed_image, output_type=pytesseract.Output.DICT)
     confidence, words = mean_confidence(data["conf"])
 
     return {"text": text, "confidence": confidence, "words": words}
 
 
 def run_textract(original_path: str) -> dict:
-    """Textract reads the original image, not the preprocessed one.
+    """Textract reads the ORIGINAL image, not the preprocessed one.
 
-    That mirrors production: extract_text_with_textract() is handed the source
-    path. Textract does its own preprocessing internally and generally does
-    better on an unmodified photo.
+    This deliberately differs from production. process_and_extract.py currently
+    hands extract_text_with_textract() the *preprocessed* path, so in the app
+    Textract receives a binarised, eroded, denoised image. Textract does its own
+    preprocessing internally and is generally stronger on an unmodified photo,
+    so passing the original is very likely the better configuration.
+
+    So this measures Textract closer to its best rather than as the app runs it
+    today. That is the comparison worth having, but it is a real difference and
+    the results should be read knowing it.
     """
     import boto3
 
@@ -99,10 +108,13 @@ def run_textract(original_path: str) -> dict:
     return {"text": "\n".join(lines), "blocks": len(response["Blocks"])}
 
 
-def mock_tesseract(processed_path: str) -> dict:
+def mock_tesseract(processed_image) -> dict:
     """Deterministic stand-in so the harness can be exercised without engines."""
-    name = Path(processed_path).stem
-    return {"text": f"augmentin 625 duo tablet\nunreadable scrawl\n{name}", "confidence": 55.0, "words": 8}
+    return {
+        "text": "augmentin 625 duo tablet\nunreadable scrawl",
+        "confidence": 55.0,
+        "words": 8,
+    }
 
 
 def mock_textract(original_path: str) -> dict:
@@ -137,11 +149,19 @@ def engine_failures(cache: dict) -> list[tuple[str, str, str]]:
     ]
 
 
-def process_one(image_path: Path, engines: set[str], mock: bool) -> dict:
-    record: dict = {"image": image_path.name, "engines": {}}
+def process_one(image_path: Path, engines: set[str], mock: bool, existing: dict | None = None) -> dict:
+    # Start from whatever is already cached. Re-running --engines tesseract
+    # must not throw away Textract results that were already paid for.
+    record: dict = dict(existing) if existing else {"image": image_path.name}
+    record["engines"] = dict(record.get("engines", {}))
 
     processed, elapsed, error = _timed(preprocess, str(image_path))
-    record["preprocess"] = {"seconds": round(elapsed, 4), "error": error, "output": processed}
+    # Only the shape - the cache is JSON and a numpy array is not serialisable.
+    record["preprocess"] = {
+        "seconds": round(elapsed, 4),
+        "error": error,
+        "shape": None if processed is None else list(processed.shape),
+    }
     if error:
         # Without a preprocessed image Tesseract has nothing to read, but
         # Textract works off the original so it can still run.
@@ -212,7 +232,9 @@ def main() -> int:
     ran: list[str] = []
     for i, image_path in enumerate(todo, 1):
         print(f"  [{i}/{len(todo)}] {image_path.name}", flush=True)
-        cache[image_path.name] = process_one(image_path, engines, args.mock)
+        cache[image_path.name] = process_one(
+            image_path, engines, args.mock, existing=cache.get(image_path.name)
+        )
         ran.append(image_path.name)
         # Written every iteration so a crash or an interrupt doesn't lose paid calls.
         cache_path.write_text(json.dumps(cache, indent=2), encoding="utf-8")

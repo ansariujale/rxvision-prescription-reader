@@ -1,7 +1,6 @@
 import requests
 import logging
 from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtGui import QIcon
 
 # Set up logging
 logging.basicConfig(

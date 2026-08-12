@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import ctypes
 import cv2
 from open_file_dialog import open_file_dialog
 from api_handler import get_medicine_data
-from check_internet import *
-from switchpages import *
+from check_internet import check_internet_connection
+from switchpages import switch_to_page1, switch_to_page2, switch_to_page3
 from crop import open_crop_window
 from loading import LoadingPage
-from process_and_extract import *
+from process_and_extract import MEDICINE_DATASET_PATH
 from process_and_extract import processAndExtract
-from PyQt6.QtMultimedia import QMediaPlayer
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtCore import (QCoreApplication,QThread,QUrl, QDate, QDateTime, QLocale, QMetaObject, QObject, QPoint, QRect, QSize, QTime, QUrl, Qt, QTimer, pyqtSignal)
-from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,QMovie, QFont, QFontDatabase, QGradient, QIcon, QImage, QKeySequence, QLinearGradient, QPainter, QPalette, QPixmap, QRadialGradient, QTransform)
-from PyQt6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSizePolicy, QSpacerItem, QStackedWidget, QTextEdit,QScrollArea, QVBoxLayout, QWidget, QGraphicsDropShadowEffect,QMessageBox)
+from PyQt6.QtCore import (QCoreApplication, QThread, QMetaObject, QSize, Qt, QTimer, pyqtSignal)
+from PyQt6.QtGui import (QColor, QCursor, QFont, QIcon, QImage, QPalette, QPixmap)
+from PyQt6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSizePolicy, QSpacerItem, QStackedWidget, QScrollArea, QVBoxLayout, QWidget, QGraphicsDropShadowEffect,QMessageBox)
 
 #Class to make the label Clickable like a button to call the API
 class clickableLabel(QLabel):
@@ -181,7 +178,7 @@ class Ui_MainWindow(object):
     def open_crop_window(self):
         if hasattr(self, 'selected_image_path') and self.selected_image_path:
                 # Call the crop window and get the cropped image path
-            cropped_image_path = open_crop_window(self.selected_image_path,medicine_dataset)
+            cropped_image_path = open_crop_window(self.selected_image_path)
 
             if cropped_image_path:
                 # Load the cropped image from file into a QPixmap
@@ -240,7 +237,7 @@ class Ui_MainWindow(object):
                 medicine_info= {"name": "Unknown", "details":"No details available"}
             self.update_right_panel(medicine_info)
         except Exception as e:
-            print(f"Error fetching medicine data")
+            print(f"Error fetching medicine data: {e}")
     
     #methods to update, render and close the frame of the main screen bgvideo
     def update_frame(self):
