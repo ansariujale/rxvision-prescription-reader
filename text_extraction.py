@@ -1,19 +1,7 @@
 
-import os
-
-import pytesseract
 import pandas as pd
 import boto3
 from rapidfuzz import fuzz, process
-
-# On Windows the Tesseract installer doesn't always put tesseract.exe on PATH
-# for every shell, and pytesseract then reports it as "not installed". Set
-# TESSERACT_CMD to the full path of the executable to point at it directly:
-#   C:\Program Files\Tesseract-OCR\tesseract.exe
-# The directory alone is not enough - this value is executed, not searched.
-_tesseract_cmd = os.environ.get("TESSERACT_CMD")
-if _tesseract_cmd:
-    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
 
 #initialize the aws textract client
 textract_client= boto3.client("textract", region_name= "ap-south-1")
@@ -37,26 +25,6 @@ def is_valid_medicine_name(text):
 def normalize_text(text):
     return text.lower().replace("mg", "").strip()
 
-
-#get the confidence score from tesseract to decide whether to fall back to textract
-def get_tesseract_confidence(image):
-
-    """Get confidence score for Tesseract OCR"""
-    # Use pytesseract to confidences get detailed information
-    data= pytesseract.image_to_data(image, output_type= pytesseract.Output.DICT)
-
-    # Drop the -1 rows. Those are Tesseract's page/block/paragraph/line entries
-    # rather than recognised words, and they have no confidence score.
-    #
-    # This used to compare against the string '-1', but pytesseract hands back
-    # ints, so nothing was ever filtered and every -1 was averaged in as if it
-    # were a real score. On a page Tesseract read perfectly that reported 43
-    # instead of 95, which pushed every image past the escalation threshold and
-    # sent the lot to Textract.
-    confidences = [int(conf) for conf in data['conf'] if int(conf) != -1]
-
-    #return average confidence score
-    return sum(confidences)/len(confidences) if confidences else 0
 
 # Match extracted text against medicine
 def match_medicine(extracted_text, medicine_names, threshold=68): #default threshold = 68
@@ -87,33 +55,25 @@ def extract_text_with_textract(image_path):
 
 
 
-def extract_text_from_image(processed_image, image_path,medicine_dataset,confidence_threshold=70): #default threshold = 70
+def extract_text_from_image(image_path, medicine_dataset):
     """Extract only medicine names from the image.
 
-    Runs Tesseract first and falls back to AWS Textract when Tesseract's own
-    mean confidence comes in under the threshold.
+    Always uses AWS Textract. This used to try Tesseract first and escalate
+    to Textract below a confidence threshold, but measurement
+    (docs/evaluation-log.md) found Tesseract read zero of 85 medicines on
+    real handwritten prescriptions, and its confidence score doesn't predict
+    that failure - a third of images kept Tesseract's empty result instead of
+    escalating. There's no signal left to route on, so this always pays for
+    Textract rather than gambling on Tesseract's confidence being right.
     """
-    # Load the medicine dataset
     medicine_names = load_medicine_dataset(medicine_dataset)
 
-    # Custom Tesseract configurations for better results
-    custom_config = r'--oem 3 --psm 6'  # Use best OCR engine mode and automatic page segmentation
+    try:
+        extracted_text = extract_text_with_textract(image_path)
+    except Exception as e:
+        print(f"Error during Textract processing: {e}")
+        return ""
 
-    # Step 1: Try the Tesseract OCR first with custom configuration
-    extracted_text = pytesseract.image_to_string(processed_image, lang='eng', config=custom_config)
-
-    # Get Tesseract confidence score
-    confidence = get_tesseract_confidence(processed_image)
-
-    # Step 2: If confidence is low, hand the image to Textract instead
-    if confidence < confidence_threshold:
-        try:
-            extracted_text = extract_text_with_textract(image_path)
-        except Exception as e:
-            print(f"Error during Textract processing: {e}")
-            return ""
-
-    # Step 3: Match extracted text with medicine dataset
     results = match_medicine(extracted_text, medicine_names)
     return results
 

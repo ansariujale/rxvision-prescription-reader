@@ -8,7 +8,6 @@ from check_internet import check_internet_connection
 from switchpages import switch_to_page1, switch_to_page2, switch_to_page3
 from crop import open_crop_window
 from loading import LoadingPage
-from process_and_extract import MEDICINE_DATASET_PATH
 from process_and_extract import processAndExtract
 from PyQt6.QtCore import (QCoreApplication, QThread, QMetaObject, QSize, Qt, QTimer, pyqtSignal)
 from PyQt6.QtGui import (QColor, QCursor, QFont, QIcon, QImage, QPalette, QPixmap)

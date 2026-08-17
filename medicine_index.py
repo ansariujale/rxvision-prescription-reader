@@ -77,6 +77,52 @@ MIN_STOP_COUNT = 50
 
 _WHITESPACE = re.compile(r"\s+")
 
+# Prescription lines rarely arrive as a bare drug name. They come numbered, or
+# prefixed with the dosage form abbreviated to a letter, or with stray marks the
+# OCR picked up from the paper:
+#
+#     "1. scata 25"      "t. catel 40"      "(af esocam- dgr"      "3) divaa od"
+#
+# All of that counts toward the similarity score and drags it down, which is why
+# several correctly-read drugs were landing just under the threshold. Measured:
+# 22 of 85 labelled medicines were legible in the OCR text but missed by the
+# matcher, and this noise is a large part of why.
+_LINE_NOISE = re.compile(
+    r"""^(?:
+          [^a-z0-9]+                 # leading brackets, dashes, stray marks
+        | \d{1,2}\s*[.)\-:]\s*       # list numbering:  1.   2)   3-
+        | (?:tabs?|caps?|inj|syp|susp|sol|oint)\s*[.\-]?\s+   # dosage abbreviations
+        | [a-z]\s*[.\-]\s+           # single-letter prefix:  t.   c.   s.
+      )+""",
+    re.VERBOSE,
+)
+
+# Below this, a "line" is too short to be a drug name and matching it produces
+# noise. Measured: 69 of 233 returns were three characters or shorter - 'x',
+# '10', 'lad' - matched from letterhead fragments and stray numbers.
+MIN_LINE_LENGTH = 6
+
+
+def clean_ocr_line(line: str) -> str:
+    """Strip prescription list markers and dosage abbreviations off a line.
+
+    >>> clean_ocr_line("1. scata 25")
+    'scata 25'
+    >>> clean_ocr_line("t. catel 40")
+    'catel 40'
+    >>> clean_ocr_line("augmentin 625")
+    'augmentin 625'
+
+    Only leading noise goes. Stray words in the middle stay, and so do short
+    words with no punctuation attached - stripping bare two-letter tokens would
+    start eating real drug names:
+
+    >>> clean_ocr_line("(af esocam- dgr")
+    'af esocam- dgr'
+    """
+    cleaned = _LINE_NOISE.sub("", line.strip())
+    return _WHITESPACE.sub(" ", cleaned).strip()
+
 
 @lru_cache(maxsize=100_000)
 def _is_dosage_form(token: str) -> bool:
@@ -183,15 +229,26 @@ class MedicineIndex:
         return [int(ids[i]) for i in np.argpartition(counts, -k)[-k:]]
 
     def match(
-        self, line: str, threshold: int = DEFAULT_THRESHOLD
+        self,
+        line: str,
+        threshold: int = DEFAULT_THRESHOLD,
+        clean: bool = True,
+        min_length: int = MIN_LINE_LENGTH,
     ) -> tuple[str, float, int] | None:
         """Best medicine for one line of OCR text.
 
         Returns (matched_key, score, index) or None if nothing clears the
         threshold. Use `.original[index]` for the full product name.
+
+        `clean` strips prescription list markers and dosage abbreviations off the
+        front of the line; `min_length` refuses to match anything shorter, which
+        is where most false positives came from. Both are switchable so the
+        effect can be measured rather than assumed.
         """
         query = strip_dosage_form(normalize(line))
-        if not query:
+        if clean:
+            query = clean_ocr_line(query)
+        if not query or len(query) < min_length:
             return None
 
         idxs = self.candidates(query)
@@ -211,12 +268,16 @@ class MedicineIndex:
         return self.keys[idxs[position]], score, idxs[position]
 
     def match_all(
-        self, text: str, threshold: int = DEFAULT_THRESHOLD
+        self,
+        text: str,
+        threshold: int = DEFAULT_THRESHOLD,
+        clean: bool = True,
+        min_length: int = MIN_LINE_LENGTH,
     ) -> list[str]:
         """Every medicine found across the lines of an OCR result."""
         found = []
         for line in text.split("\n"):
-            hit = self.match(line, threshold)
+            hit = self.match(line, threshold, clean=clean, min_length=min_length)
             if hit:
                 found.append(hit[0])
         return found

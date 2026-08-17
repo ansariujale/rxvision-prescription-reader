@@ -1,19 +1,11 @@
 from text_extraction import extract_text_from_image
-from preprocessing import process_image
 
 
 MEDICINE_DATASET_PATH = r"resource/medicine_names.csv"
 
-def processAndExtract(image_path):   
-    """Process the selected image and extract text"""
-    #step1: Process the image
-    processed_image =process_image(image_path)
-    if processed_image is None:
-        print("Image processing failed")
-        return None
-
-    #step2: Extract Text from the preprocessed image
-    extracted_text = extract_text_from_image(processed_image,image_path,MEDICINE_DATASET_PATH)
+def processAndExtract(image_path):
+    """Extract medicine names from a prescription image via AWS Textract."""
+    extracted_text = extract_text_from_image(image_path, MEDICINE_DATASET_PATH)
     print(extracted_text)
     return extracted_text
 

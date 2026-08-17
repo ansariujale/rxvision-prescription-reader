@@ -1,8 +1,6 @@
 from PyQt6.QtWidgets import QLabel, QDialog, QPushButton, QVBoxLayout, QSizePolicy, QScrollArea
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QImage, QIcon, QFont, QFontDatabase, QTransform
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QIcon, QFont, QTransform
 from PyQt6.QtCore import Qt, QRect
-from text_extraction import extract_text_from_image
-from process_and_extract import MEDICINE_DATASET_PATH
 class CropImageDialog(QDialog):
 
     def update_image_display(self):
@@ -181,9 +179,6 @@ class CropImageDialog(QDialog):
 
              # Load the cropped image back as QPixmap to set in the preview label
             cropped_pixmap = QPixmap(cropped_image_path)
-
-             # Call the text extraction function and pass the cropped image
-            extracted_text = extract_text_from_image(cropped_image_path,self.medicine_dataset)  # Pass the saved cropped image path
 
              # Save or return the cropped image
             cropped_pixmap.save("cropped_image.png")  # Save the cropped image

@@ -44,8 +44,8 @@ time that wasn't realistic on one laptop. Rather than spend the project on a mod
 have ended up worse than an off-the-shelf one, I used managed OCR services and put the effort
 into preprocessing and post-processing instead.
 
-That's why there's no model in this repo, and why the system's accuracy is mostly a function of
-how well the image is cleaned up before anything is sent anywhere.
+That's why there's no model in this repo. I expected accuracy to mostly come down to
+preprocessing, but measurement showed otherwise — see [Measuring it](#measuring-it) below.
 
 ## How it works
 
@@ -54,32 +54,27 @@ photo
   ↓
 crop window (manual region select)
   ↓
-OpenCV preprocessing
+AWS Textract
   ↓
-Tesseract OCR ──► mean confidence
-  ↓                     │
-  │             < 70? ──┴──► AWS Textract
-  ↓                             ↓
-  └─────────► extracted text ◄──┘
-                    ↓
-      RapidFuzz match vs. medicine dataset
-      (token_sort_ratio, threshold 68)
-                    ↓
-          medicine details via HTTP lookup
-                    ↓
-                results pane
+RapidFuzz match vs. medicine dataset
+(token_sort_ratio, threshold 68)
+  ↓
+medicine details via HTTP lookup
+  ↓
+results pane
 ```
 
-**Preprocessing** (`preprocessing.py`) does grayscale, adaptive Gaussian thresholding, Canny edge
-detection overlaid back onto the original, then noise removal through dilate / erode /
-morphological close / median blur. Erosion and dilation are applied conditionally on the number
-of connected components in the binary image, so a sparse scan doesn't get eroded into nothing and
-a dense one gets thinned.
+**OCR** (`text_extraction.py`) sends the image straight to AWS Textract. It used to try Tesseract
+first and only escalate to Textract below a confidence threshold, but measurement
+([`docs/evaluation-log.md`](docs/evaluation-log.md)) found Tesseract read zero of 85 medicines on
+real handwritten prescriptions and its confidence score didn't predict that failure, so there was
+no signal left to route on.
 
-**OCR routing** (`text_extraction.py`) runs Tesseract first with `--oem 3 --psm 6` and reads back
-its per-word confidence scores. If mean confidence is under 70, the image goes to AWS Textract
-instead. Tesseract is local and free, so it handles the clean images and only the hard ones cost
-an API call.
+`preprocessing.py` still exists — grayscale, adaptive Gaussian thresholding, Canny edge detection,
+noise removal through dilate / erode / morphological close / median blur, erosion and dilation
+applied conditionally on connected-component count — but nothing in the live pipeline calls it any
+more. It was built for Tesseract, and the eval log's own preprocessed-vs-original comparison for
+Textract was inconclusive on 5 images. Kept in case a local-OCR path comes back.
 
 **Matching** (`text_extraction.py`) compares each extracted line against a medicine-name dataset
 using RapidFuzz's `token_sort_ratio`, keeping matches at 68 or above. This is what recovers a
@@ -92,8 +87,11 @@ deploy myself — originally hosted on Railway, later moved to AWS Lambda behind
 
 ## Stack
 
-Python, PyQt6, OpenCV, pytesseract, AWS Textract (boto3), RapidFuzz, pandas, requests. The
-medicine lookup service behind it runs on AWS Lambda and API Gateway.
+Python, PyQt6, OpenCV, AWS Textract (boto3), RapidFuzz, pandas, requests. The medicine lookup
+service behind it runs on AWS Lambda and API Gateway.
+
+pytesseract is still a dependency of the [`eval/`](eval/) harness, which measures Tesseract
+against Textract for comparison, but the app itself no longer calls it.
 
 Google Cloud Vision was the original escalation target before I moved to Textract. It has since
 been removed — it was still being imported and authenticated at startup despite nothing calling
@@ -101,7 +99,8 @@ it, which meant the app refused to start without a service-account key it never 
 
 ## Setup
 
-Needs Python 3.10+ and Tesseract installed and on `PATH`.
+Needs Python 3.10+. Tesseract on `PATH` is only needed to run the [`eval/`](eval/) harness, not
+the app itself.
 
 ```bash
 git clone https://github.com/ansariujale/rxvision-prescription-reader.git
@@ -133,18 +132,6 @@ Two things aren't in the repo and you'll need to supply them:
 python ocrApp.py
 ```
 
-## Known issues
-
-Real ones, in the code as it stands:
-
-- **The medicine lookup URL is hardcoded** in `api_handler.py` instead of configured. So are the
-  confidence threshold (70) and the fuzzy-match threshold (68) in `text_extraction.py`.
-- **No accuracy measurement yet.** The harness to produce one exists in [`eval/`](eval/), but it
-  hasn't been run against a labelled set of real prescriptions, so there is no accuracy figure in
-  this repo. Any number quoted before that runs would be a guess.
-- **Tests cover the evaluation logic, not the application.** 37 tests over scoring and matching.
-  The Qt interface and the preprocessing chain have none.
-
 ## Measuring it
 
 There's an evaluation harness in [`eval/`](eval/) that scores medicine extraction against a
@@ -153,9 +140,22 @@ Textract only, and escalating between them at a confidence threshold. It runs bo
 per image and caches everything, so every routing strategy and threshold can be compared offline
 without re-paying for API calls.
 
-It has no results in it yet. Collecting and labelling a set of real prescriptions is the next
-piece of work, and until that happens this project has no accuracy number attached to it on
-purpose.
+On 30 hand-labelled real prescriptions (85 medicines):
+
+| | precision | recall | f1 |
+|---|---:|---:|---:|
+| tesseract only | 0.000 | 0.000 | 0.000 |
+| textract only | 0.052 | 0.129 | 0.074 |
+| escalate at 70 | 0.035 | 0.071 | 0.047 |
+
+Tesseract read zero of the 85 medicines from these images, so the confidence-based escalation
+buys nothing and is actually worse than calling Textract every time — it keeps Tesseract's empty
+result on 27% of images. The bigger ceiling is OCR itself: on some prescriptions, none of the
+labelled drugs appear anywhere in the raw OCR text, which no amount of matcher tuning can recover.
+
+Full write-up, methodology, and what I tried next is in
+[`docs/evaluation-log.md`](docs/evaluation-log.md). 30 labelled prescriptions is a small sample —
+labelling more, with a proper tune/holdout split, is the next piece of work.
 
 ## Possible next steps
 

@@ -1,6 +1,6 @@
 # Evaluation log
 
-Notes on the tests I've run on this project — what I measured, what the numbers
+Notes on the tests I've run on this project. What I measured, what the numbers
 were, and what I changed because of them. Oldest first.
 
 I started keeping this because I'd been carrying an accuracy figure I couldn't
@@ -38,7 +38,7 @@ compared each value against the string `'-1'`, but pytesseract gives you ints,
 so the comparison never matched and all the `-1`s got averaged in.
 
 Since escalation triggers below 70, this meant *every* image went to Textract no
-matter how well Tesseract did. The fallback wasn't a fallback — it ran every
+matter how well Tesseract did. The fallback wasn't a fallback. It ran every
 time and Tesseract's output was always thrown away.
 
 Fixed, with tests in `eval/tests/test_confidence.py`.
