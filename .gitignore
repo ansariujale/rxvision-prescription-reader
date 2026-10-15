@@ -1,37 +1,32 @@
-# Credentials. The glob matters: text_extraction.py loads
-# client_secret_code1.json, which the old exact-name rule did not cover.
-resource/client_secret_code*.json
-*.json
-!.vscode/*.json
+# Environment and secrets
+.env
+*.pem
 
-# Local dataset (see README - not committed, ~31 MB)
-resource/medicine_names.csv
+# Datasets (see README), not committed
+data/*
+!data/.gitkeep
+legacy/resource/medicine_names.csv
 
-# Evaluation data. Prescription images are patient data - they must never be
-# committed. Labels are ignored too since they are derived from those images.
-eval/images/
-eval/cache/
-eval/results/
-eval/labels.csv
+# Prescription images are patient data and must never be committed
+legacy/eval/images/
+legacy/eval/cache/
+legacy/eval/results/
+legacy/eval/labels.csv
 
+# Python
 __pycache__/
 *.pyc
 .venv/
-venv/
-error_log.txt
-tempCodeRunnerFile.py
-temp/
-api.py
-cropped_image.png
+backend/var/
 
-# PyInstaller output
-build/
-dist/
-*.spec
-*.exe
-*.zip
-*.pkg
+# Node
+node_modules/
+.next/
 
-# Built index (regenerated from the dataset)
-resource/*.index.pkl
+# Built index caches
 *.pkl
+
+# Editors and OS
+.DS_Store
+.vscode/*
+!.vscode/*.json

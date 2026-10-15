@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rx
+      POSTGRES_PASSWORD: rx
+      POSTGRES_DB: rxvision
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rx -d rxvision"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rx:rx@db:5432/rxvision
+      STORAGE_DIR: /data/images
+      INDEX_CACHE_DIR: /data/cache
+    volumes:
+      - apidata:/data
+      # Drop the full dataset in ./data and set MEDICINE_CSV=/datasets/medicine_names.csv
+      - ./data:/datasets:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    # Not published: the web container proxies /api/* to it, including /api/docs.
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        API_ORIGIN: http://api:8000
+    environment:
+      API_ORIGIN: http://api:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  apidata:

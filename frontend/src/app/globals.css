@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/* Light is the default; dark follows the system unless the user picks one. */
+:root {
+  --paper: #f4f3ee;
+  --surface: #fbfaf7;
+  --surface-2: #efede6;
+  --ink: #161614;
+  --ink-2: #3b3a36;
+  --muted: #76746c;
+  --line: #e2e0d8;
+  --line-strong: #cfccc2;
+  --accent: #2d6a4f;
+  --accent-soft: #e2ede6;
+  --warn: #9a6410;
+  --warn-soft: #f5ead6;
+  --danger: #a23a2a;
+  --danger-soft: #f6e3df;
+  --focus: #2d6a4f66;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11110f;
+    --surface: #191917;
+    --surface-2: #22211e;
+    --ink: #f0eee7;
+    --ink-2: #cbc8bf;
+    --muted: #8f8c83;
+    --line: #2a2926;
+    --line-strong: #3a3935;
+    --accent: #82c7a4;
+    --accent-soft: #1b2b23;
+    --warn: #e2b264;
+    --warn-soft: #2e2617;
+    --danger: #e58a78;
+    --danger-soft: #331d19;
+    --focus: #82c7a466;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #11110f;
+  --surface: #191917;
+  --surface-2: #22211e;
+  --ink: #f0eee7;
+  --ink-2: #cbc8bf;
+  --muted: #8f8c83;
+  --line: #2a2926;
+  --line-strong: #3a3935;
+  --accent: #82c7a4;
+  --accent-soft: #1b2b23;
+  --warn: #e2b264;
+  --warn-soft: #2e2617;
+  --danger: #e58a78;
+  --danger-soft: #331d19;
+  --focus: #82c7a466;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  --text-display: 4.5rem;
+  --text-display--line-height: 0.95;
+  --text-display--letter-spacing: -0.02em;
+  --text-headline: 3rem;
+  --text-headline--line-height: 1;
+  --text-headline--letter-spacing: -0.015em;
+  --text-title: 2rem;
+  --text-title--line-height: 1.05;
+  --text-title--letter-spacing: -0.01em;
+
+  --radius-tile: 20px;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  background: var(--paper);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Numbers line up in stats and tables. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The soft line that sweeps a prescription while it is being read. */
+@keyframes scan-sweep {
+  0% { transform: translateY(-10%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(1000%); opacity: 0; }
+}
+
+.scan-line {
+  animation: scan-sweep 2.4s var(--ease-out-soft) infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line,
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* react-image-crop, restyled to match the hairline look. */
+.ReactCrop__crop-selection {
+  border: 1.5px solid var(--surface) !important;
+  box-shadow: 0 0 0 9999em rgb(0 0 0 / 0.45) !important;
+  border-image: none !important;
+}
+.ReactCrop__drag-handle::after {
+  background: var(--surface) !important;
+  border: none !important;
+  border-radius: 999px;
+  width: 10px !important;
+  height: 10px !important;
+}

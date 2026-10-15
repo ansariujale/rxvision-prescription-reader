@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /dashboard
+Disallow: /scans
+Disallow: /history
+Disallow: /api
